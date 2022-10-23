@@ -1,0 +1,54 @@
+#define macro reverse_bytes32() = takes(1) returns(1) {
+    dup1 0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF and
+    0x08 shl         // (x & mask) << 8, x
+    swap1 0xFF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00 and
+    0x08 shr         // (x & mask) >> 8, (x & mask) << 8, x
+    or               // x1
+
+    dup1 0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF and
+    0x10 shl         // (x & mask) << 16, x
+    swap1 0xFFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000 and
+    0x10 shr         // (x & mask) >> 16, (x & mask) << 16, x
+    or               // x2
+
+    dup1 0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF and
+    0x20 shl         // (x & mask) << 32, x
+    swap1 0xFFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000 and
+    0x20 shr         // (x & mask) >> 32, (x & mask) << 32, x
+    or               // x3
+
+    dup1 0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF and
+    0x40 shl         // (x & mask) << 64, x
+    swap1 0xFFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF0000000000000000 and
+    0x40 shr         // (x & mask) >> 64, (x & mask) << 64, x
+    or               // x4
+
+    dup1 0x00000000000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF and
+    0x80 shl         // (x & mask) << 128, x
+    swap1 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000000000000000000000000000 and
+    0x80 shr         // (x & mask) >> 128, (x & mask) << 128, x
+    or               // x5
+}
+
+#define macro MAIN() = takes(0) returns(0) {
+    calldatasize
+    returndatasize                      // i = 0, cds
+
+    loop_cond:
+    dup2 dup2 lt                        // i < cds, i, cds
+    iszero end jumpi
+
+    // loop_body:
+    dup1 calldataload                   // cd[i], i, cds
+    reverse_bytes32()                   // rev(cd[i]), i, cds
+    dup2 calldatasize sub               // cds - i, rev(cd[i]), i, cds
+    0x20 swap1 sub                      // cds - i - 32, rev(cd[i]), i, cds
+    mstore                              // i, cds
+                                        // mem[cds - i - 32] = rev(cd[i])
+
+    0x20 add                            // i += 0x20, cds
+    loop_cond jump
+
+    end:
+    calldatasize returndatasize return
+}
