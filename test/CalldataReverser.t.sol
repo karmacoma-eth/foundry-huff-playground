@@ -11,7 +11,6 @@ contract CalldataReverser is Test {
 
     function setUp() public {
         rev = HuffDeployer.deploy("../src/rev-calldata-chunks");
-        // log code length
         console2.log("code length", rev.code.length);
     }
 
@@ -33,9 +32,44 @@ contract CalldataReverser is Test {
         assertEq(ret, data);
     }
 
-    function testRevVerbose() public {
+    function testRev96() public {
         bytes
-            memory data = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+            memory data = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccc";
+        (bool success, bytes memory ret) = rev.call(data);
+
+        assertTrue(success);
+        assertEq(
+            ret,
+            "ccccccccccccccccccccccccccccccccbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        );
+    }
+
+    function testRev8() public {
+        bytes memory data = "12345678";
+        (bool success, bytes memory ret) = rev.call(data);
+
+        assertTrue(success);
+        assertEq(ret, "87654321");
+    }
+
+    function testRev48() public {
+        bytes memory data = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbb";
+        (bool success, bytes memory ret) = rev.call(data);
+
+        assertTrue(success);
+        assertEq(ret, "bbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    }
+
+    function testRevEmpty() public {
+        bytes memory data = "";
+        (bool success, bytes memory ret) = rev.call(data);
+
+        assertTrue(success);
+        assertEq(ret, "");
+    }
+
+    function testRevVerbose() public {
+        bytes memory data = "0123456789abcdef0123456789abcdef";
         (bool success, bytes memory ret) = rev.call(data);
 
         assertTrue(success);
