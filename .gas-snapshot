@@ -1,0 +1,8 @@
+CalldataReverser:testRev32() (gas: 14802)
+CalldataReverser:testRev48() (gas: 19553)
+CalldataReverser:testRev64() (gas: 23798)
+CalldataReverser:testRev8() (gas: 8229)
+CalldataReverser:testRev96() (gas: 32910)
+CalldataReverser:testRevEmpty() (gas: 5613)
+CalldataReverser:testRevVerbose() (gas: 10718)
+ReverseTest:testReverseDeterministic() (gas: 15658771)
