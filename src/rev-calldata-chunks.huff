@@ -1,70 +1,66 @@
 // Reverse bytes received in calldata (abcd -> dcba)
 // https://twitter.com/huff_language/status/1583894073487654913
-// code length 412
+// code length 206
 
+/// @author Philippe Dumonet <philippe@dumo.net> -- https://twitter.com/real_philogy/status/1584304102418223104
+/// @author karma (@0xkarmacoma) -- https://twitter.com/0xkarmacoma/status/1584239664310779904
+/// @author kaden.eth (@0xKaden) -- https://twitter.com/0xKaden/status/1584280521089376256/
 #define macro reverse_word() = takes(1) returns(1) {
-    dup1  0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF and
-    0x08 shl         // (x & mask) << 8, x
-    swap1 0xFF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00 and
-    0x08 shr         // (x & mask) >> 8, (x & mask) << 8, x
-    or               // x1
-    dup1  0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF and
-    0x10 shl         // (x & mask) << 16, x
-    swap1 0xFFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000 and
-    0x10 shr         // (x & mask) >> 16, (x & mask) << 16, x
-    or               // x2
-    dup1  0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF and
-    0x20 shl         // (x & mask) << 32, x
-    swap1 0xFFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000 and
-    0x20 shr         // (x & mask) >> 32, (x & mask) << 32, x
-    or               // x3
-    dup1  0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF and
-    0x40 shl         // (x & mask) << 64, x
-    swap1 0xFFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF0000000000000000 and
-    0x40 shr         // (x & mask) >> 64, (x & mask) << 64, x
-    or               // x4
-    dup1  0x00000000000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF and
-    0x80 shl         // (x & mask) << 128, x
-    swap1 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000000000000000000000000000 and
-    0x80 shr         // (x & mask) >> 128, (x & mask) << 128, x
-    or               // x5
+  //               [x0]
+  0x00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff
+  dup2 dup2 and // [x1r, mask1, x0]
+  0x08 shl      // [x1r', mask1, x0]
+  swap2         // [x1, mask1, x1r']
+  0x08 shr and  // [x1l', x1r']
+  or            // [x1]
+
+  0x0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff
+  dup2 dup2 and
+  0x10 shl
+  swap2
+  0x10 shr and
+  or            // [x2]
+
+  0x00000000ffffffff00000000ffffffff00000000ffffffff00000000ffffffff
+  dup2 dup2 and
+  0x20 shl
+  swap2
+  0x20 shr and
+  or            // [x4]
+
+  0x0000000000000000ffffffffffffffff0000000000000000ffffffffffffffff
+  dup2 dup2 and
+  0x40 shl
+  swap2
+  0x40 shr and
+  or            // [x8]
+
+  dup1
+  0x80 shl
+  swap1
+  0x80 shr
+  or
 }
 
-#define macro num_chunks() = takes(0) returns(1) {
-    0x20 calldatasize div
-    0x20 calldatasize mod
-    iszero 0x1 sub add
-}
-
-// 32 - (cds % 32) % 32
-#define macro return_offset() = takes(0) returns(1) {
-    0x20
-    0x20 calldatasize mod
-    0x20 sub
-    mod
+/// @dev 0xffffffe0 only accomodates ~4 GB calldata max
+#define macro start_chunk_offset() = takes(0) returns(1) {
+  0x20                  // [0x20]
+  calldatasize 0x1f add // [cds + 31, 0x20]
+  0xffffffe0 and        // [(cds + 31) / 32 * 32, 0x20]
+  sub                   // [(cds + 31) / 32 * 32 - 32]
 }
 
 #define macro MAIN() = takes(0) returns(0) {
-    num_chunks()
-    calldatasize
-    returndatasize                      // i = 0, cds, num_chunks
+  start_chunk_offset() // [start_chunk_offset = 32 * num_chunks - 32]
+  calldatasize         // [cds, start_chunk_offset]
+  calldatasize         // [cds, cds, start_chunk_offset]
 
-    loop_cond:
-    dup2 dup2 lt                        // i < cds, i, cds, num_chunks
-    iszero end jumpi
+  next_iter:
+    msize dup4 sub     // [cd_offset, cds, cds, start_chunk_offset]
+    calldataload       // [cd[i'], cds, cds, start_chunk_offset]
+    reverse_word()     // [rev(cd[i']), cds, cds, start_chunk_offset]
+    msize mstore       // [cds, cds, start_chunk_offset]
+  calldatasize msize lt next_iter jumpi
 
-    // loop_body:
-    dup1 calldataload                   // cd[i], i, cds, num_chunks
-    reverse_word()                   // rev(cd[i]), i, cds, num_chunks
-
-    dup4 0x20 mul                       // 32*num_chunks, rev(cd[i]), i, cds, num_chunks
-    dup3 swap1 sub                      // 32*num_chunks - i, rev(cd[i]), i, cds, num_chunks
-    0x20 swap1 sub                      // chunk_offset = 32*num_chunks - i - 32, rev(cd[i]), i, cds, num_chunks
-    mstore                              // i, cds, num_chunks
-                                        // mem[chunk_offset] = rev(cd[i])
-    0x20 add                            // i += 0x20, cds, num_chunks
-    loop_cond jump
-
-    end:
-    calldatasize return_offset() return
+  msize sub return
 }
